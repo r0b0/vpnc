@@ -24,7 +24,10 @@
 #include "isakmp.h"
 
 #include <time.h>
+#ifndef __MINGW32__
 #include <net/if.h>
+#endif
+
 
 struct lifetime {
 	time_t   start;

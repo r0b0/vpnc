@@ -36,7 +36,11 @@
 #include <sys/param.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef __MINGW32__
+#include <winsock2.h>
+#else
 #include <netinet/in.h>
+#endif
 
 #include <gcrypt.h>
 

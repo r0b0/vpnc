@@ -68,6 +68,10 @@ CPPFLAGS += -DVERSION=\"$(VERSION)\"
 LDFLAGS ?= -g
 LIBS += $(shell libgcrypt-config --libs) $(CRYPTO_LDADD)
 
+ifneq (,$(findstring mingw,$(TARGET)))
+LIBS += -lws2_32 -lpthread
+endif
+
 ifeq ($(shell uname -s), SunOS)
 LIBS += -lnsl -lresolv -lsocket
 endif
@@ -76,7 +80,11 @@ ifneq (,$(findstring Apple,$(shell $(CC) --version)))
 CFLAGS += -fstrict-aliasing -freorder-blocks -fsched-interblock
 endif
 
+ifneq (,$(findstring mingw,$(TARGET)))
+all : $(BINS)
+else
 all : $(BINS) vpnc.8
+endif
 
 vpnc : $(OBJS) vpnc.o
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)

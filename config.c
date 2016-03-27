@@ -24,13 +24,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#ifndef __MINGW32__
 #include <termios.h>
+#include <sys/utsname.h>
+#include <sys/wait.h>
+#endif
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
-#include <sys/utsname.h>
-#include <sys/wait.h>
 
 #include <gcrypt.h>
 
@@ -143,8 +145,10 @@ static ssize_t vpnc_getline(char **lineptr, size_t *n, FILE *stream)
 			else
 				break;
 		}
+#ifndef __MINGW32__
 		if (llen == 0 && c == CEOT)
 			goto eof_or_ceot;
+#endif
 		if (c == '\n' || c == '\r')
 			break;
 		buf[llen++] = (char) c;
@@ -163,6 +167,7 @@ eof_or_ceot:
 	return -1;
 }
 
+#ifndef __MINGW32__
 static char *vpnc_getpass_program(const char *prompt)
 {
 	int status, r, i;
@@ -242,31 +247,40 @@ out:
 
 	return pass;
 }
+#endif
 
 char *vpnc_getpass(const char *prompt)
 {
+#ifndef __MINGW32__
 	struct termios t;
+#endif
 	char *buf = NULL;
 	size_t len = 0;
 
+#ifndef __MINGW32__
 	if (config[CONFIG_PASSWORD_HELPER]) {
 		buf = vpnc_getpass_program(prompt);
 		if (buf == NULL)
 			error(1, errno, "can't run password helper program");
 		return buf;
 	}
+#endif
 
 	printf("%s", prompt);
 	fflush(stdout);
 
+#ifndef __MINGW32__
 	tcgetattr(STDIN_FILENO, &t);
 	t.c_lflag &= ~ECHO;
 	tcsetattr(STDIN_FILENO, TCSANOW, &t);
+#endif
 
 	vpnc_getline(&buf, &len, stdin);
 
+#ifndef __MINGW32__
 	t.c_lflag |= ECHO;
 	tcsetattr(STDIN_FILENO, TCSANOW, &t);
+#endif
 	printf("\n");
 
 	return buf;
@@ -351,6 +365,14 @@ static const char *config_def_auth_mode(void)
 	return "psk";
 }
 
+#ifdef __MINGW32__
+static const char *config_def_app_version(void)
+{
+	char *version;
+	asprintf(&version, "Cisco Systems VPN Client %s", VERSION); // TODO sysname
+	return version;
+}
+#else
 static const char *config_def_app_version(void)
 {
 	struct utsname uts;
@@ -360,6 +382,7 @@ static const char *config_def_app_version(void)
 	asprintf(&version, "Cisco Systems VPN Client %s:%s", VERSION, uts.sysname);
 	return version;
 }
+#endif
 
 static const char *config_def_script(void)
 {
@@ -671,7 +694,7 @@ static char *get_config_filename(const char *name, int add_dot_conf)
 {
 	char *realname;
 
-	asprintf(&realname, "%s%s%s", index(name, '/') ? "" : "/etc/vpnc/", name, add_dot_conf ? ".conf" : "");
+	asprintf(&realname, "%s%s%s", strchr(name, '/') ? "" : "/etc/vpnc/", name, add_dot_conf ? ".conf" : "");
 	return realname;
 }
 

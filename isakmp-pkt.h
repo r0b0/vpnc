@@ -26,6 +26,10 @@
 #endif
 #include <sys/types.h>
 
+#ifdef __MINGW32__
+#include <winsock2.h>
+#endif
+
 #include "isakmp.h"
 
 struct isakmp_attribute {

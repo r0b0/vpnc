@@ -19,10 +19,12 @@
  */
 
 #include <sys/types.h>
+#ifndef __MINGW32__
 #include <sys/socket.h>
 #include <netinet/in.h>
+#endif
 
-#if !defined(__CYGWIN__)
+#if !defined(__CYGWIN__) && !defined(__MINGW32__)
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <netinet/if_ether.h>
@@ -132,7 +134,7 @@ const char *inet_ntop(int af, const void *src, char *dst, size_t cnt);
 #endif
 #endif
 /***************************************************************************/
-#if defined (__CYGWIN__)
+#if defined (__CYGWIN__) || defined(__MINGW32__)
 #define HAVE_VASPRINTF 1
 #define HAVE_ASPRINTF  1
 #define HAVE_UNSETENV  1

@@ -54,32 +54,51 @@
  */
 
 #include <sys/types.h>
+#ifndef __MINGW32__
 #include <sys/socket.h>
+#include <netinet/in_systm.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <arpa/inet.h>
+#include <syslog.h>
+#include <sys/select.h>
+#endif
+#ifdef __MINGW32__
+#include <winsock2.h>
+struct ip
+  {
+    unsigned int ip_hl:4;               /* header length */
+    unsigned int ip_v:4;                /* version */
+    char ip_tos;                    /* type of service */
+    u_short ip_len;                     /* total length */
+    u_short ip_id;                      /* identification */
+    u_short ip_off;                     /* fragment offset field */
+    char ip_ttl;                    /* time to live */
+    char ip_p;                      /* protocol */
+    u_short ip_sum;                     /* checksum */
+    struct in_addr ip_src, ip_dst;      /* source and dest address */
+  };
+#define IPVERSION       4               /* IP version number */
+#endif
 #include <errno.h>
 #include <assert.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <netinet/in_systm.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
-#ifndef __SKYOS__
+#if !defined(__SKYOS__) && !defined(__MINGW32__)
 #include <netinet/ip_icmp.h>
 #endif
-#include <arpa/inet.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <syslog.h>
 #include <time.h>
-#include <sys/select.h>
 #include <signal.h>
 
-#ifdef __CYGWIN__
+#if defined(__CYGWIN__) || defined(__MINGW32__)
 #include <pthread.h>
 #endif
 
-#if !defined(__sun__) && !defined(__SKYOS__)
+#if !defined(__sun__) && !defined(__SKYOS__) && !defined(__MINGW32__)
 #include <err.h>
 #endif
 
@@ -98,6 +117,16 @@
 #define FD_COPY(f, t)	((void)memcpy((t), (f), sizeof(*(f))))
 #endif
 
+#ifndef LOG_ERR
+#define LOG_EMERG       0       /* system is unusable */
+#define LOG_ALERT       1       /* action must be taken immediately */
+#define LOG_CRIT        2       /* critical conditions */
+#define LOG_ERR         3       /* error conditions */
+#define LOG_WARNING     4       /* warning conditions */
+#define LOG_NOTICE      5       /* normal but significant condition */
+#define LOG_INFO        6       /* informational */
+#define LOG_DEBUG       7       /* debug-level messages */
+#endif
 /* A real ESP header (RFC 2406) */
 typedef struct esp_encap_header {
 	uint32_t spi; /* security parameters index */
@@ -731,7 +760,7 @@ static void process_socket(struct sa_block *s)
 		logmsg(LOG_NOTICE, "unknown spi %#08x from peer", ntohl(eh->spi));
 		return;
 	} else if (ntohl(eh->spi) < 256) {
-		syslog(LOG_NOTICE, "illegal spi %d from peer - continuing", ntohl(eh->spi));
+		logmsg(LOG_NOTICE, "illegal spi %d from peer - continuing", ntohl(eh->spi));
 	}
 
 	/* Check auth digest and/or decrypt */
@@ -747,7 +776,7 @@ static void process_socket(struct sa_block *s)
 	}
 }
 
-#if defined(__CYGWIN__)
+#if defined(__CYGWIN__) || defined(__MINGW32__)
 static void *tun_thread (void *arg)
 {
 	struct sa_block *s = (struct sa_block *) arg;
@@ -770,7 +799,7 @@ static void vpnc_main_loop(struct sa_block *s)
 	struct timeval normal_timeout;
 	time_t next_ike_keepalive=0;
 	time_t next_ike_dpd=0;
-#if defined(__CYGWIN__)
+#if defined(__CYGWIN__) || defined(__MINGW32__)
 	pthread_t tid;
 #endif
 
@@ -796,7 +825,7 @@ static void vpnc_main_loop(struct sa_block *s)
 
 	FD_ZERO(&rfds);
 
-#if !defined(__CYGWIN__)
+#if !defined(__CYGWIN__) && !defined(__MINGW32__)
 	FD_SET(s->tun_fd, &rfds);
 	nfds = MAX(nfds, s->tun_fd +1);
 #endif
@@ -809,7 +838,7 @@ static void vpnc_main_loop(struct sa_block *s)
 		nfds = MAX(nfds, s->ike_fd +1);
 	}
 
-#if defined(__CYGWIN__)
+#if defined(__CYGWIN__) || defined(__MINGW32__)
 	if (pthread_create(&tid, NULL, tun_thread, s)) {
 	        logmsg(LOG_ERR, "Cannot create tun thread!\n");
 		return;
@@ -890,7 +919,7 @@ static void vpnc_main_loop(struct sa_block *s)
 			continue;
 		}
 
-#if !defined(__CYGWIN__)
+#if !defined(__CYGWIN__) && !defined(__MINGW32__)
 		if (FD_ISSET(s->tun_fd, &refds)) {
 			process_tun(s);
 		}
@@ -981,7 +1010,9 @@ static void write_pidfile(const char *pidfile)
 
 void vpnc_doit(struct sa_block *s)
 {
+#ifndef __MINGW32__
 	struct sigaction act;
+#endif
 	struct encap_method meth;
 
 	const char *pidfile = config[CONFIG_PID_FILE];
@@ -1031,16 +1062,19 @@ void vpnc_doit(struct sa_block *s)
 
 	do_kill = 0;
 
+#ifndef __MINGW32__
 	sigaction(SIGHUP, NULL, &act);
 	if (act.sa_handler == SIG_DFL)
 		signal(SIGHUP, killit);
 
 	signal(SIGINT, killit);
 	signal(SIGTERM, killit);
+#endif
 
 	chdir("/");
 
 	if (!opt_nd) {
+#ifndef __MINGW32__
 		pid_t pid;
 		if ((pid = fork()) < 0) {
 			fprintf(stderr, "Warning, could not fork the child process!\n");
@@ -1060,6 +1094,7 @@ void vpnc_doit(struct sa_block *s)
 		}
 		openlog("vpnc", LOG_PID | LOG_PERROR, LOG_DAEMON);
 		logmsg = syslog;
+#endif
 	} else {
 		printf("VPNC started in foreground...\n");
 	}

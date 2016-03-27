@@ -22,12 +22,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#ifndef __MINGW32__
 #include <syslog.h>
 #include <sys/ioctl.h>
-#include <errno.h>
-
 #include <sys/socket.h>
 #include <net/if.h>
+#endif
+#include <errno.h>
+
 
 #ifdef __sun__
 #include <ctype.h>
@@ -56,13 +58,24 @@
 #include <sys/cygwin.h>
 #endif
 
+#ifdef __MINGW32__
+#include <io.h>
+#include <windef.h>
+#include <winbase.h>
+#include <winnt.h>
+#include <winioctl.h>
+#include <iphlpapi.h>
+#include <iptypes.h>
+#include <winreg.h>
+#endif
+
 #if defined(__DragonFly__)
 #include <net/tun/if_tun.h>
 #elif defined(__linux__)
 #include <linux/if_tun.h>
 #elif defined(__APPLE__)
 /* no header for tun */
-#elif defined(__CYGWIN__)
+#elif defined(__CYGWIN__) || defined(__MINGW32__)
 #include "tap-win32.h"
 #else
 #include <net/if_tun.h>
@@ -72,6 +85,17 @@
 
 #if !defined(HAVE_VASPRINTF) || !defined(HAVE_ASPRINTF) || !defined(HAVE_ERROR)
 #include <stdarg.h>
+#endif
+
+#ifndef LOG_ERR
+#define LOG_EMERG       0       /* system is unusable */
+#define LOG_ALERT       1       /* action must be taken immediately */
+#define LOG_CRIT        2       /* critical conditions */
+#define LOG_ERR         3       /* error conditions */
+#define LOG_WARNING     4       /* warning conditions */
+#define LOG_NOTICE      5       /* normal but significant condition */
+#define LOG_INFO        6       /* informational */
+#define LOG_DEBUG       7       /* debug-level messages */
 #endif
 
 #if defined(__sun__)

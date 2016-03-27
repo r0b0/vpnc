@@ -30,6 +30,12 @@
 #include <string.h>
 #include <time.h>
 #include <stdlib.h>
+#ifdef __MINGW32__
+// WindowsVista - needed for WsaPoll
+#define _WIN32_WINNT 0x0600
+#define WINVER 0x0600
+#include <winsock2.h>
+#else
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
@@ -37,6 +43,7 @@
 #include <poll.h>
 #include <sys/ioctl.h>
 #include <sys/utsname.h>
+#endif
 
 #include <gcrypt.h>
 
@@ -165,6 +172,21 @@ static struct sa_block *s_atexit_sa;
 
 static void close_tunnel(struct sa_block *s);
 
+#ifdef __MINGW32__
+void setenv(char *var, char *val, int dummy) {
+	char *strbuf;
+	asprintf(&strbuf, "%s=%s", var, val);
+	putenv(strbuf);
+	free(strbuf);
+}
+void unsetenv(char *var) {
+	char *strbuf;
+	asprintf(&strbuf, "%s=", var);
+	putenv(strbuf);
+	free(strbuf);
+}
+#endif
+
 void print_vid(const unsigned char *vid, uint16_t len) {
 
 	int vid_index = 0;
@@ -183,10 +205,12 @@ void print_vid(const unsigned char *vid, uint16_t len) {
 	printf("   (unknown)\n");
 }
 
-static __inline__ int min(int a, int b)
+#ifndef __MINGW32__
+static int min(int a, int b)
 {
 	return (a < b) ? a : b;
 }
+#endif
 
 static void addenv(const void *name, const char *value)
 {
@@ -303,12 +327,12 @@ static void init_sockaddr(struct in_addr *dst, const char *hostname)
 {
 	struct hostent *hostinfo;
 
-	if (inet_aton(hostname, dst) == 0) {
+	//if (inet_aton(hostname, dst) == 0) {
 		hostinfo = gethostbyname(hostname);
 		if (hostinfo == NULL)
 			error(1, 0, "unknown host `%s'\n", hostname);
 		*dst = *(struct in_addr *)hostinfo->h_addr;
-	}
+	//}
 }
 
 static void init_netaddr(struct in_addr *net, const char *string)
@@ -449,7 +473,11 @@ static int recv_ignore_dup(struct sa_block *s, void *recvbuf, size_t recvbufsize
 
 static ssize_t sendrecv(struct sa_block *s, void *recvbuf, size_t recvbufsize, void *tosend, size_t sendsize, int sendonly)
 {
+#ifdef __MINGW32__
+	WSAPOLLFD pfd;
+#else
 	struct pollfd pfd;
+#endif
 	int tries = 0;
 	int recvsize = -1;
 	time_t start = time(NULL);
@@ -479,7 +507,11 @@ static ssize_t sendrecv(struct sa_block *s, void *recvbuf, size_t recvbufsize, v
 			break;
 
 		do {
+#ifdef __MINGW32__
+			pollresult = WSAPoll(&pfd, 1, s->ike.timeout << tries);
+#else
 			pollresult = poll(&pfd, 1, s->ike.timeout << tries);
+#endif
 		} while (pollresult == -1 && errno == EINTR);
 
 		if (pollresult == -1)
@@ -2467,11 +2499,16 @@ static int do_phase2_config(struct sa_block *s)
 	struct isakmp_payload *rp;
 	struct isakmp_attribute *a;
 	struct isakmp_packet *r;
+#ifdef __MINGW32__
+	char *nodename="local"; // TODO
+#else
 	struct utsname uts;
+	uname(&uts);
+	char *nodename=uts.nodename;
+#endif
 	uint32_t msgid;
 	int reject;
 
-	uname(&uts);
 
 	gcry_create_nonce((uint8_t *) & msgid, sizeof(msgid));
 	if (msgid == 0)
@@ -2488,9 +2525,9 @@ static int do_phase2_config(struct sa_block *s)
 	memcpy(a->u.lots.data, config[CONFIG_VERSION], a->u.lots.length);
 
 	a = new_isakmp_attribute(ISAKMP_MODECFG_ATTRIB_CISCO_DDNS_HOSTNAME, a);
-	a->u.lots.length = strlen(uts.nodename);
+	a->u.lots.length = strlen(nodename);
 	a->u.lots.data = xallocc(a->u.lots.length);
-	memcpy(a->u.lots.data, uts.nodename, a->u.lots.length);
+	memcpy(a->u.lots.data, nodename, a->u.lots.length);
 
 	a = new_isakmp_attribute(ISAKMP_MODECFG_ATTRIB_CISCO_SPLIT_DNS, a);
 	a = new_isakmp_attribute(ISAKMP_MODECFG_ATTRIB_CISCO_SPLIT_INC, a);

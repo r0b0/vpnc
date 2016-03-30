@@ -185,6 +185,9 @@ void unsetenv(char *var) {
 	putenv(strbuf);
 	free(strbuf);
 }
+int inet_aton(const char *hostname, struct in_addr *dst) {
+	return InetPton(AF_INET, hostname, dst);
+}
 #endif
 
 void print_vid(const unsigned char *vid, uint16_t len) {
@@ -206,7 +209,7 @@ void print_vid(const unsigned char *vid, uint16_t len) {
 }
 
 #ifndef __MINGW32__
-static int min(int a, int b)
+static __inline__ int min(int a, int b)
 {
 	return (a < b) ? a : b;
 }
@@ -327,12 +330,12 @@ static void init_sockaddr(struct in_addr *dst, const char *hostname)
 {
 	struct hostent *hostinfo;
 
-	//if (inet_aton(hostname, dst) == 0) {
+	if (inet_aton(hostname, dst) == 0) {
 		hostinfo = gethostbyname(hostname);
 		if (hostinfo == NULL)
 			error(1, 0, "unknown host `%s'\n", hostname);
 		*dst = *(struct in_addr *)hostinfo->h_addr;
-	//}
+	}
 }
 
 static void init_netaddr(struct in_addr *net, const char *string)
@@ -2500,7 +2503,9 @@ static int do_phase2_config(struct sa_block *s)
 	struct isakmp_attribute *a;
 	struct isakmp_packet *r;
 #ifdef __MINGW32__
-	char *nodename="local"; // TODO
+#define NODENAME_LEN 1000
+	char nodename[NODENAME_LEN];
+	GetComputerNameA(nodename, NODENAME_LEN);
 #else
 	struct utsname uts;
 	uname(&uts);

@@ -369,7 +369,9 @@ static const char *config_def_auth_mode(void)
 static const char *config_def_app_version(void)
 {
 	char *version;
-	asprintf(&version, "Cisco Systems VPN Client %s", VERSION); // TODO sysname
+	WORD wVersion = LOWORD(GetVersion());
+	asprintf(&version, "Cisco Systems VPN Client %s:Win%d.%d", 
+			VERSION, LOBYTE(wVersion), HIBYTE(wVersion));
 	return version;
 }
 #else

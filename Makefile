@@ -20,7 +20,7 @@
 # $Id$
 
 DESTDIR=
-PREFIX=/usr/local
+#PREFIX=/usr/local
 ETCDIR=/etc/vpnc
 BINDIR=$(PREFIX)/bin
 SBINDIR=$(PREFIX)/sbin
@@ -88,6 +88,9 @@ endif
 
 vpnc : $(OBJS) vpnc.o
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+vpnc.exe: vpnc
+	cp vpnc vpnc.exe
 
 vpnc.8 : vpnc.8.template makeman.pl vpnc
 	./makeman.pl

@@ -103,7 +103,7 @@ extern char **environ;
 static int ip_fd = -1, muxid;
 #endif
 
-#if defined(__CYGWIN__)
+#if defined(__CYGWIN__) || defined(__MINGW32__)
 /*
  * Overlapped structures for asynchronous read and write
  */
@@ -113,6 +113,22 @@ typedef enum {
 	SEARCH_IF_GUID_FROM_NAME,
 	SEARCH_IF_NAME_FROM_GUID
 } search_if_en;
+#endif
+
+#ifdef __MINGW32__
+int get_osfhandle(int fd) 
+{
+	return _get_osfhandle(fd);
+}
+int cygwin_attach_handle_to_fd(char *name, int fd, HANDLE handle, int bin, int access)
+{
+	int rfd = _open_osfhandle(handle, _O_RDWR);
+	DEBUG(3, printf("Trying to convert handle %d to fd returned %d\n", handle, rfd));
+	if (rfd == -1) {
+		printf("Error: %d\n", errno);
+	}
+	return rfd;
+}
 #endif
 
 /*
@@ -183,12 +199,13 @@ int tun_open(char *dev, enum if_mode_enum mode)
 
 	return tun_fd;
 }
-#elif defined(__CYGWIN__)
+#elif defined(__CYGWIN__) || defined(__MINGW32__)
 /*
  * Get interface guid/name from registry
  */
 static char *search_if(char *value, char *key, search_if_en type)
 {
+	DEBUG(3, printf("search_if %s %s\n", value, key));
 	int i = 0;
 	LONG status;
 	DWORD len;
@@ -302,6 +319,7 @@ static int open_tun_device (char *guid, char *dev, enum if_mode_enum mode)
 		0);
 
 	if (handle == INVALID_HANDLE_VALUE) {
+		printf("Invalid handle value\n");
 		return -1;
 	}
 
@@ -329,18 +347,26 @@ static int open_tun_device (char *guid, char *dev, enum if_mode_enum mode)
 		"TAP_IOCTL_SET_MEDIA_STATUS DeviceIoControl call.\n");
 	}
 
+	char state[16];
+	DeviceIoControl(handle, TAP_IOCTL_GET_INFO,
+		&state, sizeof(state),
+		&state, sizeof(state), &len, NULL);
+	DEBUG(3, printf("Tap adapter state: %s\n", state));
+
 	/*
 	 * Initialize overlapped structures
 	 */
 	overlap_read.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	overlap_write.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	if (!overlap_read.hEvent || !overlap_write.hEvent) {
+		printf("Failed overlapped structures\n");
 		return -1;
 	}
 
 	/*
 	 * Return fd
 	 */
+	DEBUG(3, printf("Returning fd for handle\n"));
 	return cygwin_attach_handle_to_fd(NULL, -1, handle, 1, GENERIC_READ | GENERIC_WRITE);
 }
 
@@ -362,6 +388,8 @@ int tun_open (char *dev, enum if_mode_enum mode)
 	LONG status;
 	DWORD len;
 
+	DEBUG(99, printf("win32 tun_open called\n"));
+
 	if (!dev) {
 		return -1;
 	}
@@ -379,6 +407,7 @@ int tun_open (char *dev, enum if_mode_enum mode)
 	/*
 	 * Device name has non been specified. Look for one available!
 	 */
+	DEBUG(3, printf("looking for an available tun device\n"));
 	int i = 0;
 	status = RegOpenKeyEx(HKEY_LOCAL_MACHINE,
 		ADAPTER_KEY,
@@ -531,7 +560,7 @@ int tun_close(int fd, char *dev)
 	close(fd);
 	return 0;
 }
-#elif defined(__CYGWIN__)
+#elif defined(__CYGWIN__) || defined(__MINGW32__)
 int tun_close(int fd, char *dev)
 {
 	dev = NULL; /* unused */
@@ -564,7 +593,7 @@ int tun_read(int fd, unsigned char *buf, int len)
 	sbuf.buf = buf;
 	return getmsg(fd, NULL, &sbuf, &f) >= 0 ? sbuf.len : -1;
 }
-#elif defined(__CYGWIN__)
+#elif defined(__CYGWIN__) || defined(__MINGW32__)
 int tun_read(int fd, unsigned char *buf, int len)
 {
 	DWORD read_size;
@@ -679,7 +708,7 @@ int tun_read(int fd, unsigned char *buf, int len)
  */
 int tun_get_hwaddr(int fd, char *dev, uint8_t *hwaddr)
 {
-#if defined(__CYGWIN__)
+#if defined(__CYGWIN__) || defined(__MINGW32__)
 	ULONG len;
 
 	dev = NULL; /* unused */

@@ -3291,6 +3291,15 @@ int main(int argc, char **argv)
 	s->ike.timeout = 1000; /* 1 second */
 
 	do_config(argc, argv);
+#ifdef __MINGW32__
+	WSADATA wsaData;
+	int err;
+	err = WSAStartup(MAKEWORD(2, 2), &wsaData);
+	if (err != 0) {
+	        printf("WSAStartup failed with error: %d\n", err);
+        	return 1;
+	}
+#endif
 
 	DEBUG(1, printf("\nvpnc version " VERSION "\n"));
 	hex_dump("hex_test", hex_test, sizeof(hex_test), NULL);

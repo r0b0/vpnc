@@ -116,7 +116,7 @@ typedef enum {
 #endif
 
 #ifdef __MINGW32__
-int get_osfhandle(int fd) 
+HANDLE get_osfhandle(int fd) 
 {
 	return _get_osfhandle(fd);
 }

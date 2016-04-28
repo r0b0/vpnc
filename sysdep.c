@@ -28,6 +28,7 @@
 
 #include <sys/socket.h>
 #include <net/if.h>
+#include <netinet/in.h>
 
 #ifdef __sun__
 #include <ctype.h>
@@ -38,7 +39,6 @@
 #include <sys/sockio.h>
 #include <signal.h>
 #include <stropts.h>
-#include <netinet/in.h>
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>

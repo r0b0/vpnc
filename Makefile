@@ -51,8 +51,9 @@ CRYPTO_CFLAGS = -DOPENSSL_GPL_VIOLATION -DCRYPTO_OPENSSL
 CRYPTO_SRCS = crypto-openssl.c
 endif
 
-SRCS = sysdep.c vpnc-debug.c isakmp-pkt.c tunip.c config.c dh.c math_group.c supp.c decrypt-utils.c crypto.c $(CRYPTO_SRCS)
+SRCS = sysdep.c vpnc-debug.c isakmp-pkt.c tunip.c config.c dh.c math_group.c supp.c decrypt-utils.c crypto.c vpnc_cmdline.c $(CRYPTO_SRCS)
 BINS = vpnc cisco-decrypt test-crypto
+SOLIBS = vpnc.dll
 OBJS = $(addsuffix .o,$(basename $(SRCS)))
 CRYPTO_OBJS = $(addsuffix .o,$(basename $(CRYPTO_SRCS)))
 BINOBJS = $(addsuffix .o,$(BINS))
@@ -76,10 +77,13 @@ ifneq (,$(findstring Apple,$(shell $(CC) --version)))
 CFLAGS += -fstrict-aliasing -freorder-blocks -fsched-interblock
 endif
 
-all : $(BINS) vpnc.8
+all : $(BINS) $(SOLIBS) vpnc.8
 
 vpnc : $(OBJS) vpnc.o
 	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS)
+
+vpnc.dll : $(OBJS) vpnc.o
+	$(CC) $(LDFLAGS) -o $@ $^ $(LIBS) -shared
 
 vpnc.8 : vpnc.8.template makeman.pl vpnc
 	./makeman.pl
@@ -106,6 +110,15 @@ etags :
 ctags :
 	ctags *.[ch]
 
+bindir : all
+	install -d bin
+	install vpnc bin
+	ldd vpnc |grep -iv SYSTEM32 | cut -d " " -f 3 | xargs cp -t bin
+	install vpnc.dll bin
+	ldd vpnc.dll |grep -iv SYSTEM32 | cut -d " " -f 3 | xargs cp -t bin
+	install /usr/bin/sh bin
+	ldd /usr/bin/sh |grep -iv SYSTEM32 | cut -d " " -f 3 | xargs cp -t bin
+
 vpnc-%.tar.gz :
 	mkdir vpnc-$*
 	LC_ALL=C svn info -R | awk -v RS='' -v FS='\n' '/Node Kind: file/ {print substr($$1,7)}' | \
@@ -120,7 +133,7 @@ test : all
 dist : VERSION vpnc.8 vpnc-$(RELEASE_VERSION).tar.gz
 
 clean :
-	-rm -f $(OBJS) $(BINOBJS) $(BINS) tags
+	-rm -f $(OBJS) $(BINOBJS) $(BINS) $(SOLIBS) tags bin/*
 
 distclean : clean
 	-rm -f vpnc-debug.c vpnc-debug.h vpnc.ps vpnc.8 .depend

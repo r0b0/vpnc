@@ -3196,7 +3196,7 @@ void process_late_ike(struct sa_block *s, uint8_t *r_packet, ssize_t r_length)
 	return;
 }
 
-int main(int argc, char **argv)
+int vpnc_main(int argc, char **argv)
 {
 	int do_load_balance;
 	const uint8_t hex_test[] = { 0, 1, 2, 3 };
